@@ -1,7 +1,7 @@
 react-bullet-app
 ================
 
-Local todo list with some of the UI vaguely inspired by bullet journaling (see [http://bulletjournal.com/](here)). 
+Local todo list with some of the UI vaguely inspired by bullet journaling (see [here](http://bulletjournal.com/)). 
 Programmed in react.js
 
 
