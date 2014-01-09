@@ -1,17 +1,17 @@
-Bullet journaling running locally in your browser
+# Bullet journaling running locally in your browser
 =================================================
 
 Local todo list with some of the UI vaguely inspired by bullet journaling (see [here](http://bulletjournal.com/)). 
 Programmed in react.js (first try at programming using this lib...)
 
 
-"Installation" guide
+## "Installation" guide
 ====================
 
 Just download the source code, and run index.html in your browser. Alternatively, you can run it straight off github by clicking here.
 Everything is stored locally on your computer (using the localStorage ability of html5 apps), no server is required.
 
-A word of caution
+## A word of caution
 =================
 
 1. I'm a crap programmer - don't take this as textbook react or even javascript programming. It just works and to me that's enough...
