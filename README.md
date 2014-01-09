@@ -6,7 +6,8 @@ Programmed in react.js (first try at programming using this lib...)
 
 ##"Installation" guide
 
-Just download the source code, and run index.html in your browser. Alternatively, you can run it straight off github by clicking here.
+Just download the source code, and run index.html in your browser. 
+Alternatively, _you can run it straight off github_ by clicking [here](http://rawgithub.com/lollipierre/react-bullet-app/master/index.html).
 Everything is stored locally on your computer (using the localStorage ability of html5 apps), no server is required.
 
 ##A word of caution
