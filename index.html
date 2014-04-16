@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
   <head>
@@ -26,12 +27,23 @@
       .glyphicon-calendar {cursor: pointer;}
       .glyphicon-pencil {cursor: pointer;}
       .glyphicon-minus {cursor: pointer;}
+      .glyphicon-cloud {cursor: pointer;}
+      .glyphicon-th-list {cursor: pointer;}
+      .glyphicon-cloud-download {cursor: pointer;}
+      .glyphicon-cloud-upload {cursor: pointer;}
+      .glyphicon-gbp {cursor: pointer;}
       .cursor {cursor: pointer;}
       .bullet-input {width: 40%;}
       .blurred {opacity: 0.25;}
       .moving {opacity: 0.25;}
       .trash-activated {color: red;}
       .collection-input {width: 100%;}
+      .hiddenFileInput {  
+        display: block;
+        visibility: hidden;
+        width: 0;
+        height: 0;
+      }
       .handle {
         cursor: move;
         background-image: url("images/handle.png");
@@ -47,7 +59,7 @@
       /**
        * @jsx React.DOM
        */
-       
+      React.initializeTouchEvents(true); 
       // GUID function
       function s4() {
         return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
@@ -56,17 +68,21 @@
       function guid() {
         return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
       }
-      // End of GUID function   
+      // End of GUID function
+
+      function isDate (x) { 
+        return (null != x) && !isNaN(x) && ("undefined" !== typeof x.getDate); 
+      }
+      // End of function to test if date    
       
       if (!localStorage.collections || !localStorage.activeCollection || !localStorage.bullets || !localStorage.filters) {
-        //var initCollections = [{id: 0, title: "Everything"}, {id: 1, title: "Programming"}, {id: 2, title: "Reading"}];
         var initCollections = [{id: 0, title: "Everything"}];
         localStorage.collections = JSON.stringify(initCollections);
         var initActiveCollection = 0;      
         localStorage.activeCollection = initActiveCollection;
         var initBullets = [];
         localStorage.bullets = JSON.stringify(initBullets);
-        var initFilters = {important: true, explore: true, idea: true, task: true, note: true, event: true, unmarked:true};
+        var initFilters = {important: true, explore: true, idea: true, task: true, note: true, event: true, deal: true, unmarked:true, hidedone: false, cluster: false};
         localStorage.filters = JSON.stringify(initFilters);
       } else {
         var initCollections = JSON.parse(localStorage.collections);
@@ -217,11 +233,95 @@
         getInitialState: function() {
           return {filters: this.props.filters};
         },
-        toggleFilter :  function(e){
+        toggleFilter:  function(e){
           var filters = this.state.filters;
           filters[e.target.id] = !filters[e.target.id];
           localStorage.filters = JSON.stringify(filters);
           this.setState({filters: filters});
+        },
+        downloadBackup: function(e){
+          var backup = JSON.stringify({collections: JSON.parse(localStorage.collections), activeCollection: localStorage.activeCollection, bullets: JSON.parse(localStorage.bullets), filters: JSON.parse(localStorage.filters)});
+          var backupAsBlob = new Blob([backup], {type: "application/json"});
+          var downloadLink = document.createElement("a");
+	    downloadLink.download = "todo_backup_" + (new Date()).toLocaleString() + ".json";
+	    downloadLink.innerHTML = "Download File";
+	    if (window.webkitURL != null){
+		// Chrome allows the link to be clicked
+		// without actually adding it to the DOM.
+		downloadLink.href = window.webkitURL.createObjectURL(backupAsBlob);
+          } else {
+            // Firefox requires the link to be added to the DOM
+            // before it can be clicked.
+            downloadLink.href = window.URL.createObjectURL(backupAsBlob);
+            downloadLink.id = "tempDownload";
+            downloadLink.style.display = "none";
+            document.body.appendChild(downloadLink);
+          }
+          downloadLink.click();
+          $('#tempDownload').remove();
+        },
+        uploadBackup: function(e) {
+          $('#files').change(function(e){
+            var fileToLoad = ($("#files"))[0].files[0];
+            if (fileToLoad != undefined) {
+              // First we make a backup of the current view in case the upload fails...
+              var currentCollections = JSON.parse(localStorage.collections);
+              var currentActiveCollection = localStorage.activeCollection;
+              var currentBullets = JSON.parse(localStorage.bullets);
+              var currentFilters = JSON.parse(localStorage.filters);
+              try {
+                var fileReader = new FileReader();
+	          fileReader.onload = function(fileLoadedEvent) {
+                var backupToJSON = JSON.parse(fileLoadedEvent.target.result);
+                localStorage.collections = JSON.stringify(backupToJSON.collections);
+                localStorage.activeCollection = backupToJSON.activeCollection; 
+                localStorage.bullets = JSON.stringify(backupToJSON.bullets); 
+                localStorage.filters = JSON.stringify(backupToJSON.filters); 
+                window.location.reload();
+	          }
+	          fileReader.readAsText(fileToLoad, "UTF-8");
+              }
+              catch (e) {
+                alert("Invalid file - uploading aborted");
+                // We restore to the initial state
+                localStorage.collections = JSON.stringify(currentCollections);
+                localStorage.activeCollection = JSON.stringify(currentActiveCollection);
+                localStorage.bullets = JSON.stringify(currentBullets);
+                localStorage.filters = JSON.stringify(currentFilters);
+                window.location.reload();
+              }
+            }          
+          });
+          $('#files').click();
+        },
+        xTooltip: function(title, x) {
+          if (x == "deal") {
+            var allDeals = this.props.bullets.filter(function(bullet){
+              return (bullet.type[x] && !bullet.status.finished);
+            });
+            var dealValues = allDeals.map(function(deal){
+              return parseFloat(deal.title.substring(deal.title.lastIndexOf("£")+1,deal.title.lastIndexOf("m")));
+            });
+            var pnl = 0;
+		for (i=0, n=dealValues.length; i<n; i++) {
+              if (!isNaN(dealValues[i])) {
+                pnl += dealValues[i];
+              }
+            } 
+            if (pnl > 0) {
+              return title + "<br />(total deals: £" + pnl + "m)";
+            } else {
+              return title;
+            }
+          } else {
+            var pendingX = this.props.bullets.filter(function(bullet){
+              return (bullet.type[x] && !bullet.status.finished);
+            });
+            var doneX = this.props.bullets.filter(function(bullet){
+              return (bullet.type[x] && bullet.status.finished);
+            });
+            return title + "<br />(pending: "+ pendingX.length + ", done: " + doneX.length + ")";
+          }
         },
         render: function() {
           var cx = React.addons.classSet;
@@ -242,6 +342,13 @@
             'glyphicon': true,
             'glyphicon-calendar': true,
             'light': !this.state.filters.event ,
+            'cursor': true, 
+            'tip': true
+          });
+          var dealClasses = cx({
+            'glyphicon': true,
+            'glyphicon-gbp': true,
+            'light': !this.state.filters.deal ,
             'cursor': true, 
             'tip': true
           });
@@ -269,17 +376,42 @@
             'light': !this.state.filters.unmarked, 
             'tip': true 
           });
+          var hidedoneClasses = cx({
+            'glyphicon': true,
+            'glyphicon-cloud': true,
+            'light': !this.state.filters.hidedone, 
+            'tip': true 
+          });
+          var clusterClasses = cx({
+            'glyphicon': true,
+            'glyphicon-th-list': true,
+            'light': !this.state.filters.cluster, 
+            'tip': true 
+          });
+          var downloadClasses = cx({
+            'glyphicon': true,
+            'glyphicon-cloud-download': true,
+            'tip': true 
+          });
+          var uploadClasses = cx({
+            'glyphicon': true,
+            'glyphicon-cloud-upload': true,
+            'tip': true 
+          });
+          var backupTooltip = "Save backup to drive (" + (JSON.stringify(localStorage).length*2/5000000*100).toFixed(1) + "% used)";
           return (
             <div className="FiltersBar">
               <p>
                 <br />
                 Filters:
                 {' '}
-                <span className={taskClasses} onClick={this.toggleFilter} id="task" data-placement="top" data-toggle="tooltip" data-original-title="Display tasks"></span>
+                <span className={taskClasses} onClick={this.toggleFilter} id="task" data-placement="top" data-toggle="tooltip" data-html="true" data-original-title={this.xTooltip("Display tasks", "task")}></span>
                 {' '}
-                <span className={noteClasses} onClick={this.toggleFilter} id="note" data-placement="top" data-toggle="tooltip" data-original-title="Display notes"></span>
+                <span className={noteClasses} onClick={this.toggleFilter} id="note" data-placement="top" data-toggle="tooltip" data-html="true" data-original-title={this.xTooltip("Display notes", "note")}></span>
                 {' '}
-                <span className={eventClasses} onClick={this.toggleFilter} id="event" data-placement="top" data-toggle="tooltip" data-original-title="Display events"></span>
+                <span className={eventClasses} onClick={this.toggleFilter} id="event" data-placement="top" data-toggle="tooltip" data-html="true" data-original-title={this.xTooltip("Display events", "event")}></span>
+                {' '}
+                <span className={dealClasses} onClick={this.toggleFilter} id="deal" data-placement="top" data-toggle="tooltip" data-html="true" data-original-title={this.xTooltip("Display deals", "deal")}></span>
                 {'  | '}
                 <span className={importantClasses} onClick={this.toggleFilter} id="important" data-placement="top" data-toggle="tooltip" data-original-title="Display important"></span>
                 {' '}
@@ -288,10 +420,18 @@
                 <span className={ideaClasses} onClick={this.toggleFilter} id="idea" data-placement="top" data-toggle="tooltip" data-original-title="Display ideas"></span>
                 {' '}
                 <span className={unmarkedClasses} onClick={this.toggleFilter} id="unmarked" data-placement="top" data-toggle="tooltip" data-original-title="Display unmarked"></span>
-
-              </p>
-            <BulletsList bullets={this.props.bullets} collections={this.props.collections} activeCollection={this.props.activeCollection} filters={this.state.filters}/>
-            </div>
+                {'  | '}
+                <span className={hidedoneClasses} onClick={this.toggleFilter} id="hidedone" data-placement="top" data-toggle="tooltip" data-original-title="Hide finished bullets"></span>
+                {' '}
+                <span className={clusterClasses} onClick={this.toggleFilter} id="cluster" data-placement="top" data-toggle="tooltip" data-original-title="Group and sort bullets"></span>
+                {'  ·· Backup: '}
+                <span className={downloadClasses} onClick={this.downloadBackup} id="download" data-placement="top" data-toggle="tooltip" data-original-title={backupTooltip}></span>
+                {' '}
+                <span className={uploadClasses} onClick={this.uploadBackup} id="upload" data-placement="top" data-toggle="tooltip" data-original-title="Load backup from drive"></span>
+             </p>
+             <input type="file" id="files" name="files[]" className="hiddenFileInput" />
+             <BulletsList bullets={this.props.bullets} collections={this.props.collections} activeCollection={this.props.activeCollection} filters={this.state.filters}/>
+            </div>	
           );
         }
       });
@@ -302,6 +442,22 @@
         },
         componentWillReceiveProps: function(nextProps) {
           this.setState({bullets: nextProps.bullets}); // update bullets when changed from within parent component
+        },
+        componentDidMount: function() { // in order to prevent line breaks when pressing enter, and blur to trigger save event
+          $(".editableBullet").on('keydown', function(e) {
+            if (e.keyCode == 13 && !e.shiftKey){
+              e.preventDefault();
+              this.blur();
+            }
+          });
+        },
+        componentDidUpdate: function() { // in order to prevent line breaks when pressing enter, and blur to trigger save event
+          $(".editableBullet").on('keydown', function(e) {
+            if (e.keyCode == 13 && !e.shiftKey){
+              e.preventDefault();
+              this.blur();
+            }
+          });
         },
         toggleFinished : function(e) {
           var bullets = this.state.bullets;
@@ -365,10 +521,57 @@
         onDragEnd: function(e) {
           $(e.target).removeClass('moving');
         },
+        changeBulletTitle: function(e) {
+          var bullets = this.state.bullets;
+          for (var i=0; i<bullets.length; i++) {
+            if(bullets[i].id == e.target.id) {
+              var bullet = bullets[i];
+              bullet.title = e.target.innerText;
+              bullets[i] = bullet;
+            }
+          }
+          localStorage.bullets = JSON.stringify(bullets);
+          this.setState({bullets: bullets});
+        },
         render: function() {
           var cx = React.addons.classSet;
-          var formatedBulletsList = this.state.bullets.map(function(bullet) {
-            if ((this.props.activeCollection == bullet.collection  || this.props.activeCollection == 0) && ((this.props.filters.task && bullet.type.task) || (this.props.filters.event && bullet.type.event) || (this.props.filters.note && bullet.type.note)) && ( this.props.filters.unmarked && (!bullet.signifier.explore && !bullet.signifier.idea && !bullet.signifier.important) || (this.props.filters.explore && bullet.signifier.explore) || (this.props.filters.important && bullet.signifier.important) || (this.props.filters.idea && bullet.signifier.idea))) {
+
+          // Here we cluster the bullets by meetings (sorted by date) then everything else
+          if (this.props.filters.cluster) {
+            var events = this.state.bullets.filter(function(bullet) {
+              return (bullet.type.event);
+            });
+            events.sort(function(a,b){
+              aDate = new Date(a.title.substring(0,10).split("/").reverse().join("-"));
+              bDate = new Date(b.title.substring(0,10).split("/").reverse().join("-"));
+              return (aDate - bDate);
+            });
+            var deals = this.state.bullets.filter(function(bullet) {
+              return (bullet.type.deal);
+            });
+            deals.sort(function(a,b){
+              aDate = new Date(a.title.substring(0,10).split("/").reverse().join("-"));
+              bDate = new Date(b.title.substring(0,10).split("/").reverse().join("-"));
+              return (aDate - bDate);
+            });
+            var importantTasks = this.state.bullets.filter(function(bullet) {
+              return (bullet.type.task && bullet.signifier.important);
+            });
+            var otherTasks = this.state.bullets.filter(function(bullet) {
+              return (bullet.type.task && !bullet.signifier.important);
+            });
+            var importantNotes = this.state.bullets.filter(function(bullet) {
+              return (bullet.type.note && bullet.signifier.important);
+            });
+            var otherNotes = this.state.bullets.filter(function(bullet) {
+              return (bullet.type.note && !bullet.signifier.important);
+            });
+            var toFormat = events.concat(deals,importantTasks,otherTasks,importantNotes,otherNotes);
+          } else {
+            var toFormat = this.state.bullets;
+          }
+          var formatedBulletsList = toFormat.map(function(bullet) {
+            if ((this.props.activeCollection == bullet.collection  || this.props.activeCollection == 0) && ((this.props.filters.task && bullet.type.task) || (this.props.filters.event && bullet.type.event) || (this.props.filters.note && bullet.type.note) || (this.props.filters.deal && bullet.type.deal)) && (this.props.filters.unmarked && (!bullet.signifier.explore && !bullet.signifier.idea && !bullet.signifier.important) || (this.props.filters.explore && bullet.signifier.explore) || (this.props.filters.important && bullet.signifier.important) || (this.props.filters.idea && bullet.signifier.idea)) && !(this.props.filters.hidedone && bullet.status.finished)) {
               var findCollectionNameById = function(collections,id) {
                 if (id == 0) return;
                 for (var i=0; i<collections.length; i++) {
@@ -386,7 +589,8 @@
                 'glyphicon-unchecked': bullet.type.task && !bullet.status.finished,
                 'glyphicon-check': bullet.type.task && bullet.status.finished,
                 'glyphicon-calendar': bullet.type.event,
-                'glyphicon-pencil': bullet.type.note
+                'glyphicon-pencil': bullet.type.note,
+                'glyphicon-gbp': bullet.type.deal
               });
               var importantClasses = cx({
                 'glyphicon': true,
@@ -406,7 +610,7 @@
               var bulletCollectionName = findCollectionNameById(this.props.collections, bullet.collection);
               
               return ( 
-                  <li className={bulletClasses} id={bullet.id} draggable="true" onDragStart={this.onDragStart} onDragEnd={this.onDragEnd}><span className="handle"></span>{' '}<span className={typeClasses} onClick={this.toggleFinished} id={bullet.id}></span>{' '}{bullet.title}{' '}<span className="label label-default">{bulletCollectionName}</span>{' '}<span className={importantClasses} onClick={this.toggleImportant} id={bullet.id}></span>{' '}<span className={exploreClasses} onClick={this.toggleExplore} id={bullet.id}></span>{' '}<span className={ideaClasses} onClick={this.toggleIdea} id={bullet.id}></span></li>
+                  <li className={bulletClasses} id={bullet.id} draggable="true" onDragStart={this.onDragStart} onDragEnd={this.onDragEnd}><span className="handle"></span>{' '}<span className={typeClasses} onClick={this.toggleFinished} id={bullet.id}></span>{' '}<span className="editableBullet" id={bullet.id} contentEditable="true" onBlur={this.changeBulletTitle}>{bullet.title}</span>{' '}<span className="label label-default">{bulletCollectionName}</span>{' '}<span className={importantClasses} onClick={this.toggleImportant} id={bullet.id}></span>{' '}<span className={exploreClasses} onClick={this.toggleExplore} id={bullet.id}></span>{' '}<span className={ideaClasses} onClick={this.toggleIdea} id={bullet.id}></span></li>
               );
             }
           }, this); // again to make sure we have the right scope on -this-
@@ -424,7 +628,7 @@
 
       var BulletForm = React.createClass({
         getInitialState: function() {
-          return({newBullet: {id:guid(), title: "", type: { task: true, note: false, event: false}, status: { finished: false, irrelevant: false}, signifier: {important: false, explore: false, idea: false}, collection: this.props.activeCollection}, input:""});
+          return({newBullet: {id:guid(), title: "", type: { task: true, note: false, event: false, deal: false}, status: { finished: false, irrelevant: false}, signifier: {important: false, explore: false, idea: false}, collection: this.props.activeCollection}, input:""});
         },
         componentDidMount: function() {
           this.refs.bulletInput.getDOMNode().focus();
@@ -435,6 +639,7 @@
             newBullet.type.task = false;
             newBullet.type.note = false;
             newBullet.type.event = false;
+            newBullet.type.deal = false;
             newBullet.type[e.target.id] = true;      
             this.setState({newBullet: newBullet});
           }
@@ -453,7 +658,7 @@
             var newBullet = this.state.newBullet;
             newBullet.title = this.state.input;
             this.props.onNewBullet(newBullet);
-            this.setState({newBullet: {id:guid(), title: "", type: { task: true, note: false, event: false}, status: { finished: false, irrelevant: false}, signifier: {important: false, explore: false, idea: false}, collection: this.props.activeCollection}, input:""});
+            this.setState({newBullet: {id:guid(), title: "", type: { task: true, note: false, event: false, deal: false}, status: { finished: false, irrelevant: false}, signifier: {important: false, explore: false, idea: false}, collection: this.props.activeCollection}, input:""});
           }
         },
         render: function() {
@@ -473,6 +678,12 @@
             'glyphicon': true,
             'glyphicon-calendar': true,
             'light': !this.state.newBullet.type.event,
+            'cursor': true
+          });
+          var dealClasses = cx({
+            'glyphicon': true,
+            'glyphicon-gbp': true,
+            'light': !this.state.newBullet.type.deal,
             'cursor': true
           });
           var importantClasses = cx({
@@ -511,6 +722,8 @@
                 <span className={noteClasses} onClick={this.setType} id="note"></span>
                 {' '}
                 <span className={eventClasses} onClick={this.setType} id="event"></span>
+                {' '}
+                <span className={dealClasses} onClick={this.setType} id="deal"></span>
                 {' '}
                 <input type="text" ref="bulletInput" className="bullet-input form-control" onChange={this.onInputChange} value={this.state.input} />
                 {' '}
